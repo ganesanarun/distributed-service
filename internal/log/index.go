@@ -51,21 +51,35 @@ func (i *index) Close() error {
 	return i.file.Close()
 }
 
-func (i *index) Read(in int64) (out uint32, pos uint64, err error) {
+func (i *index) Read(in int64) (off uint32, pos uint64, err error) {
 	if i.size == 0 {
 		return 0, 0, io.EOF
 	}
 
 	if in == -1 {
-		out = uint32((i.size / entWidth) - 1)
+		off = uint32((i.size / entWidth) - 1)
 	} else {
-		out = uint32(in)
+		off = uint32(in)
 	}
-	pos = uint64(out) * entWidth
+	pos = uint64(off) * entWidth
 	if i.size < pos+entWidth {
 		return 0, 0, io.EOF
 	}
-	out = Enc.Uint32(i.mmap[pos : pos+offWidth])
-	pos = Enc.Uint64(i.mmap[pos+posWidth : pos+posWidth])
-	return out, pos, nil
+	off = Enc.Uint32(i.mmap[pos : pos+offWidth])
+	pos = Enc.Uint64(i.mmap[pos+offWidth : pos+entWidth])
+	return off, pos, nil
+}
+
+func (i *index) Write(off uint32, pos uint64) error {
+	if uint64(len(i.mmap)) < i.size+entWidth {
+		return io.EOF
+	}
+	Enc.PutUint32(i.mmap[i.size:i.size+offWidth], off)
+	Enc.PutUint64(i.mmap[i.size+offWidth:i.size+entWidth], pos)
+	i.size += entWidth
+	return nil
+}
+
+func (i *index) Name() string {
+	return i.file.Name()
 }
